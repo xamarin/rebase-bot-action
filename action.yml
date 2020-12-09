@@ -1,0 +1,121 @@
+name: Rebase Pull Request from Comment
+description: Launches a Rebase Job from a GitHub Comment on an Issue
+author: Connor Adsit <cadsit@microsoft.com>
+inputs:
+  pull_request_url:
+    description: URL of the pull request from the issue comment event
+    required: true
+  comment_author:
+    description: Author of the PR comment
+    required: true
+  github_repository:
+    description: GitHub Repository where the comment was written
+    required: true
+  ado_organization:
+    description: Azure DevOps organization that hosts the rebase job
+    required: true
+  ado_project:
+    description: Azure DevOps project that hosts the rebase job
+    required: true
+  rebase_pipeline_id:
+    description: ID of the rebase yaml pipeline in Azure DevOps
+    required: true
+  ado_build_pat:
+    description: PAT of an account that can launch builds on the rebase pipeline in Azure DevOps
+    required: true
+  github_account_pat:
+    description: PAT for a github account that has write access to source repository
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - name: Gather Parameters
+      id: get_parameters
+      run: |
+        $statusCode = 0
+        $message = ""
+        try {
+          ($repoOwner, $repoName) = "${{ inputs.github_repository }}".Split("/")
+          $headers = $headers = @{ Authorization = "token ${{ inputs.github_account_pat }}"}
+          $uri = "https://api.github.com/repos/$repoOwner/$repoName/collaborators/${{ inputs.comment_author }}/permission"
+          Write-Host "Checking $repoOwner membership for ${{ inputs.comment_author }} via $uri"
+          $response = Invoke-WebRequest -Headers $headers -Uri $uri
+          $content = $response.Content | ConvertFrom-Json
+          $accessType = $content.permission
+          Write-Host "Found membership: $accessType"
+          if (-not ($accessType.Equals("admin") -or $accessType.Equals("write"))) {
+            throw "${{ inputs.comment_author }}/permission does not have sufficient permissions for ${{ inputs.github_repository }}"
+          }
+
+          Write-Host "Grabbing PR details from ${{ inputs.pull_request_url }}"
+          $response = Invoke-WebRequest -UseBasicParsing -Headers $headers -Uri "${{ inputs.pull_request_url }}" | ConvertFrom-Json
+          $PRNumber = $response.number
+          ($sourceRepoOrg, $sourceBranch) = $response.head.ref.Split(":")
+          $targetBranch = $response.base.ref
+
+          $parameters = @{
+            RepoName = "$repoName";
+             = "$sourceRepo";
+             = "$sourceBranch";
+            TargetRepoOrg = "$repoOwner";
+            TargetBranch = "$targetBranch";
+            PRNumber = "$PRNumber"
+          } | ConvertTo-Json -Compress
+
+          $json = $parameters.Replace("`"","'")
+          echo "::set-output name=parameters::$json"
+          echo "::set-output name=pr_number::$PRNumber"
+        } catch {
+          Write-Host $_.Message
+          $statusCode = 1
+        }
+        return $statusCode
+      shell: pwsh
+
+    - name: Launch ADO Build
+      id: ado_build
+      run: |
+        $message = ""
+        $statusCode = 0
+        try {
+          $launchURI = "https://dev.azure.com/${{ inputs.ado_organization }}/${{ inputs.ado_project }}/_apis/pipelines/${{ inputs.rebase_pipeline_id }}/runs?api-version=6.0-preview.1"
+          $parameters = ConvertFrom-Json "${{ steps.get_parameters.outputs.parameters }}"
+          $jsonBody = @{
+              previewRun = false;
+              templateParameters = $parameters;
+              resources = @{
+                repositories = @{
+                  self = @{
+                    refName = "refs/heads/yaml-pipeline"
+                  }
+                }
+              };
+            } | ConvertTo-Json -Depth 10
+
+          Write-Host "Posting to $launchURI"
+          Write-Host $json
+          $encoded = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes(":${{ inputs.ado_build_pat }}"))
+          $headers = @{ Authorization = "Basic $encoded"}
+
+          $response = Invoke-WebRequest -UseBasicParsing -Method POST -Headers $headers -ContentType "application/json" -Uri $launchURI -Body $jsonBody
+          echo "Job successfully launched"
+          $message = "Rebase Job Created!"
+        } catch {
+          $message = "I couldn't rebase. :( Please check the Action logs for more details."
+          $statusCode = 1
+        } finally {
+          $jsonBody = @{
+            body = $message
+          } | ConvertTo-Json
+
+          $headers = @{ Authorization = "token ${{ inputs.github_account_pat }}"}
+          $uri = "https://api.github.com/repos/${{ inputs.github_repository }}/issues/${{ steps.get_parameters.outputs.pr_number }}/comments"
+
+
+          Write-Host "Posting to $uri"
+          Write-Host "$jsonBody"
+          Invoke-WebRequest -UseBasicParsing -Headers $headers -Method POST -Uri $uri -Body $jsonBody
+        }
+        return $statusCode
+      shell: pwsh
