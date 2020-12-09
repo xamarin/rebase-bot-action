@@ -93,7 +93,7 @@ runs:
             } | ConvertTo-Json -Depth 10
 
           Write-Host "Posting to $launchURI"
-          Write-Host $json
+          Write-Host $jsonBody
           $encoded = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes(":${{ inputs.ado_build_pat }}"))
           $headers = @{ Authorization = "Basic $encoded"}
 
@@ -101,6 +101,7 @@ runs:
           echo "Job successfully launched"
           $message = "Rebase Job Created!"
         } catch {
+          Write-Host $_.Exception.Message
           $message = "I couldn't rebase. :( Please check the Action logs for more details."
           $statusCode = 1
         } finally {
