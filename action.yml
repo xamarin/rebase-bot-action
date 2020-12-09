@@ -51,14 +51,13 @@ runs:
           Write-Host "Grabbing PR details from ${{ inputs.pull_request_url }}"
           $response = Invoke-WebRequest -UseBasicParsing -Headers $headers -Uri "${{ inputs.pull_request_url }}" | ConvertFrom-Json
           $PRNumber = $response.number
-          ($sourceRepoOrg, $sourceBranch) = $response.head.ref.Split(":")
+          ($repoOrg, $sourceBranch) = $response.head.ref.Split(":")
           $targetBranch = $response.base.ref
 
           $parameters = @{
             RepoName = "$repoName";
-             = "$sourceRepo";
-             = "$sourceBranch";
-            TargetRepoOrg = "$repoOwner";
+            RepoOrg = "$repoOrg";
+            SourceBranch = "$sourceBranch";
             TargetBranch = "$targetBranch";
             PRNumber = "$PRNumber"
           } | ConvertTo-Json -Compress
