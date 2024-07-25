@@ -1,6 +1,6 @@
 name: Rebase Pull Request from Comment
 description: Launches a Rebase Job from a GitHub Comment on an Issue
-author: Connor Adsit <cadsit@microsoft.com>
+author: VS MobileTools Engineering Service <vsmobiletoolsengsvc@microsoft.com>
 inputs:
   pull_request_url:
     description: URL of the pull request from the issue comment event
@@ -37,7 +37,7 @@ runs:
         $message = ""
         try {
           ($repoOwner, $repoName) = "${{ inputs.github_repository }}".Split("/")
-          $headers = $headers = @{ Authorization = "token ${{ inputs.github_account_pat }}"}
+          $headers = @{ Authorization = "token ${{ inputs.github_account_pat }}"}
           $uri = "https://api.github.com/repos/$repoOwner/$repoName/collaborators/${{ inputs.comment_author }}/permission"
           Write-Host "Checking $repoOwner membership for ${{ inputs.comment_author }} via $uri"
           $response = Invoke-WebRequest -Headers $headers -Uri $uri
@@ -97,7 +97,7 @@ runs:
           $encoded = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes(":${{ inputs.ado_build_pat }}"))
           $headers = @{ Authorization = "Basic $encoded"}
 
-          $response = Invoke-WebRequest -UseBasicParsing -Method POST -Headers $headers -ContentType "application/json" -Uri $launchURI -Body $jsonBody
+          $response = Invoke-WebRequest -UseBasicParsing -Method POST -Headers $headers -Uri $launchURI -Body $jsonBody -ContentType 'application/json'
           echo "Job successfully launched"
           $message = "Rebase Job Created!"
         } catch {
@@ -115,7 +115,7 @@ runs:
 
           Write-Host "Posting to $uri"
           Write-Host "$jsonBody"
-          Invoke-WebRequest -UseBasicParsing -Headers $headers -Method POST -Uri $uri -Body $jsonBody
+          Invoke-WebRequest -UseBasicParsing -Headers $headers -Method POST -Uri $uri -Body $jsonBody -ContentType 'application/json'
         }
         return $statusCode
       shell: pwsh
