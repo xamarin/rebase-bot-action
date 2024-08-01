@@ -1,121 +1,117 @@
 name: Rebase Pull Request from Comment
-description: Launches a Rebase Job from a GitHub Comment on an Issue
-author: VS MobileTools Engineering Service <vsmobiletoolsengsvc@microsoft.com>
-inputs:
-  pull_request_url:
-    description: URL of the pull request from the issue comment event
-    required: true
-  comment_author:
-    description: Author of the PR comment
-    required: true
-  github_repository:
-    description: GitHub Repository where the comment was written
-    required: true
-  ado_organization:
-    description: Azure DevOps organization that hosts the rebase job
-    required: true
-  ado_project:
-    description: Azure DevOps project that hosts the rebase job
-    required: true
-  rebase_pipeline_id:
-    description: ID of the rebase yaml pipeline in Azure DevOps
-    required: true
-  ado_build_pat:
-    description: PAT of an account that can launch builds on the rebase pipeline in Azure DevOps
-    required: true
-  github_account_pat:
-    description: PAT for a github account that has write access to source repository
-    required: true
+# description: Launches a Rebase Job from a GitHub Comment on an Issue
+# author: VS MobileTools Engineering Service <vsmobiletoolsengsvc@microsoft.com>
+on:
+  workflow_call:
+    inputs:
+      pull_request_url:
+        description: URL of the pull request from the issue comment event
+        type: string
+        required: true
+      comment_author:
+        description: Author of the PR comment
+        type: string
+        required: true
+      github_repository:
+        description: GitHub Repository where the comment was written
+        type: string
+        required: true
+    secrets:
+      ado_organization:
+        description: Azure DevOps organization that hosts the rebase job
+        required: true
+      ado_project:
+        description: Azure DevOps project that hosts the rebase job
+        required: true
+      rebase_pipeline_id:
+        description: ID of the rebase yaml pipeline in Azure DevOps
+        required: true
+      ado_build_pat:
+        description: PAT of an account that can launch builds on the rebase pipeline in Azure DevOps
+        required: true
+      github_account_pat:
+        description: PAT for a github account that has write access to source repository
+        required: true
 
-runs:
-  using: "composite"
+jobs:
+  launch_ado_build:
+    runs-on: ubuntu-latest
+    # GITHUB_TOKEN change from read-write to read-only on 2024-02-01 requiring permissions block
+    # https://docs.opensource.microsoft.com/github/apps/permission-changes/
+    # https://docs.github.com/en/actions/using-jobs/assigning-permissions-to-jobs
+    permissions:
+      actions: none
+      contents: read
+      security-events: none
+      id-token: write
+  env:
+    PULL_REQUEST_URL: "${{ inputs.pull_request_url }}"
+    COMMENT_AUTHOR: "${{ inputs.comment_author }}"
+    GITHUB_REPOSITORY: "${{ inputs.github_repository }}"
+    ADO_ORGANIZATION: "${{ secrets.ado_organization }}"
+    ADO_PROJECT: "${{ secrets.ado_project }}"
+    REBASE_PIPELINE_ID: "${{ secrets.rebase_pipeline_id }}"
+    ADO_BUILD_PAT: "${{ secrets.ado_build_pat }}"
+    GITHUB_ACCOUNT_PAT: "${{ secrets.github_account_pat }}"
+
   steps:
-    - name: Gather Parameters
-      id: get_parameters
-      run: |
-        $statusCode = 0
-        $message = ""
-        try {
-          ($repoOwner, $repoName) = "${{ inputs.github_repository }}".Split("/")
-          $headers = @{ Authorization = "token ${{ inputs.github_account_pat }}"}
-          $uri = "https://api.github.com/repos/$repoOwner/$repoName/collaborators/${{ inputs.comment_author }}/permission"
-          Write-Host "Checking $repoOwner membership for ${{ inputs.comment_author }} via $uri"
-          $response = Invoke-WebRequest -Headers $headers -Uri $uri
-          $content = $response.Content | ConvertFrom-Json
-          $accessType = $content.permission
-          Write-Host "Found membership: $accessType"
-          if (-not ($accessType.Equals("admin") -or $accessType.Equals("write"))) {
-            throw "${{ inputs.comment_author }}/permission does not have sufficient permissions for ${{ inputs.github_repository }}"
-          }
+  - name: Gather Parameters
+    shell: pwsh
+    id: get_parameters
+    run: |
+      $githubRepository = $env:GITHUB_REPOSITORY
+      $commentAuthor = $env:COMMENT_AUTHOR
+      $pullRequestUrl = $env:PULL_REQUEST_URL
+      $githubAccountPat = $env:GITHUB_ACCOUNT_PAT
 
-          Write-Host "Grabbing PR details from ${{ inputs.pull_request_url }}"
-          $response = Invoke-WebRequest -UseBasicParsing -Headers $headers -Uri "${{ inputs.pull_request_url }}" | ConvertFrom-Json
-          $PRNumber = $response.number
-          $sourceBranch = $response.head.ref
-          $targetBranch = $response.base.ref
+      Write-Host "GITHUB_REPOSITORY: ${githubRepository}"
+      Write-Host "COMMENT_AUTHOR: ${commentAuthor}"
+      Write-Host "PULL_REQUEST_URL: ${pullRequestUrl}"
 
-          $parameters = @{
-            RepoName = "$repoName";
-            RepoOrg = "$repoOwner";
-            SourceBranch = "$sourceBranch";
-            TargetBranch = "$targetBranch";
-            PRNumber = "$PRNumber"
-          } | ConvertTo-Json -Compress
+      if (-not ([string]::IsNullOrEmpty($gitHubAccountPAT))) {
+          $gitHubAccountPATHint = $gitHubAccountPAT.Substring(0, 8)
+      } else {
+          $gitHubAccountPATHint = '[not set]'
+      }
 
-          $json = $parameters.Replace("`"","'")
-          echo "::set-output name=parameters::$json"
-          echo "::set-output name=pr_number::$PRNumber"
-        } catch {
-          Write-Host $_.Message
-          $statusCode = 1
+      Write-Host "GITHUB_ACCOUNT_PAT (hint): ${gitHubAccountPATHint}"
+
+      $statusCode = 0
+      try {
+        ($repoOwner, $repoName) = $githubRepository.Split("/")
+        $headers = @{ Authorization = "token ${githubAccountPat}" }
+        $uri = "https://api.github.com/repos/$repoOwner/$repoName/collaborators/${commentAuthor}/permission"
+        Write-Host "Checking $repoOwner membership for ${commentAuthor} via $uri"
+        $response = Invoke-WebRequest -Headers $headers -Uri $uri
+        $content = $response.Content | ConvertFrom-Json
+        $accessType = $content.permission
+        Write-Host "Found membership: $accessType"
+        if (-not ($accessType.Equals("admin") -or $accessType.Equals("write"))) {
+          throw "${commentAuthor}/permission does not have sufficient permissions for ${githubRepository}"
         }
-        return $statusCode
-      shell: pwsh
 
-    - name: Launch ADO Build
-      id: ado_build
-      run: |
-        $message = ""
-        $statusCode = 0
-        try {
-          $launchURI = "https://dev.azure.com/${{ inputs.ado_organization }}/${{ inputs.ado_project }}/_apis/pipelines/${{ inputs.rebase_pipeline_id }}/runs?api-version=6.0-preview.1"
-          $parameters = ConvertFrom-Json "${{ steps.get_parameters.outputs.parameters }}"
-          $jsonBody = @{
-              previewRun = false;
-              templateParameters = $parameters;
-              resources = @{
-                repositories = @{
-                  self = @{
-                    refName = "refs/heads/yaml-pipeline"
-                  }
-                }
-              };
-            } | ConvertTo-Json -Depth 10
+        Write-Host "Grabbing PR details from ${pullRequestUrl}"
+        $response = Invoke-WebRequest -UseBasicParsing -Headers $headers -Uri $pullRequestUrl | ConvertFrom-Json
+        $PRNumber = $response.number
+        $sourceBranch = $response.head.ref
+        $targetBranch = $response.base.ref
 
-          Write-Host "Posting to $launchURI"
-          Write-Host $jsonBody
-          $encoded = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes(":${{ inputs.ado_build_pat }}"))
-          $headers = @{ Authorization = "Basic $encoded"}
+        $parameters = @{
+          RepoName = $repoName
+          RepoOrg = $repoOwner
+          SourceBranch = $sourceBranch
+          TargetBranch = $targetBranch
+          PRNumber = $PRNumber
+        } | ConvertTo-Json -Compress
 
-          $response = Invoke-WebRequest -UseBasicParsing -Method POST -Headers $headers -Uri $launchURI -Body $jsonBody -ContentType 'application/json'
-          echo "Job successfully launched"
-          $message = "Rebase Job Created!"
-        } catch {
-          Write-Host $_.Exception.Message
-          $message = "I couldn't rebase. :( Please check the Action logs for more details."
-          $statusCode = 1
-        } finally {
-          $jsonBody = @{
-            body = $message
-          } | ConvertTo-Json
+        $json = $parameters.Replace("`"","'")
 
-          $headers = @{ Authorization = "token ${{ inputs.github_account_pat }}"}
-          $uri = "https://api.github.com/repos/${{ inputs.github_repository }}/issues/${{ steps.get_parameters.outputs.pr_number }}/comments"
-
-
-          Write-Host "Posting to $uri"
-          Write-Host "$jsonBody"
-          Invoke-WebRequest -UseBasicParsing -Headers $headers -Method POST -Uri $uri -Body $jsonBody -ContentType 'application/json'
-        }
-        return $statusCode
-      shell: pwsh
+        Write-Host "Setting output variables"
+        Write-Host "GITHUB_OUTPUT: ${env:GITHUB_OUTPUT}"
+        [IO.File]::AppendAllText($env:GITHUB_OUTPUT, "parameters=${json}$([Environment]::NewLine)")                 # Equivalent to the deprecated ::set-output command: https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions#jobsjob_idoutputs
+        [IO.File]::AppendAllText($env:GITHUB_OUTPUT, "pr_number=${PRNumber}$([Environment]::NewLine)")
+      } catch {
+        Write-Host $_.Exception.Message
+        $statusCode = 1
+      }
+      return $statusCode
