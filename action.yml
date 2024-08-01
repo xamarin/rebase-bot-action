@@ -19,23 +19,18 @@ on:
     secrets:
       ado_organization:
         description: Azure DevOps organization that hosts the rebase job
-        type: string
         required: true
       ado_project:
         description: Azure DevOps project that hosts the rebase job
-        type: string
         required: true
       rebase_pipeline_id:
         description: ID of the rebase yaml pipeline in Azure DevOps
-        type: string
         required: true
       ado_build_pat:
         description: PAT of an account that can launch builds on the rebase pipeline in Azure DevOps
-        type: string
         required: true
       github_account_pat:
         description: PAT for a github account that has write access to source repository
-        type: string
         required: true
 
 jobs:
