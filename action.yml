@@ -115,3 +115,58 @@ jobs:
         $statusCode = 1
       }
       return $statusCode
+
+  - name: Launch ADO Build
+    shell: pwsh
+    id: ado_build
+    run: |
+      $adoOrganization = $env:ADO_ORGANIZATION
+      $adoProject = $env:ADO_PROJECT
+      $pipelineId = $env:REBASE_PIPELINE_ID
+      $adoBuildPat = $env:ADO_BUILD_PAT
+      $gitHubRepository = $env:GITHUB_REPOSITORY
+      $gitHubAccountPat = $env:GITHUB_ACCOUNT_PAT
+
+      $message = ""
+      $statusCode = 0
+      try {
+        $launchURI = "https://dev.azure.com/${adoOrganization}/${adoProject}/_apis/pipelines/${pipelineId}/runs?api-version=6.0-preview.1"
+        $parameters = ConvertFrom-Json "${{ steps.get_parameters.outputs.parameters }}"
+        $jsonBody = @{
+            previewRun = false;
+            templateParameters = $parameters;
+            resources = @{
+              repositories = @{
+                self = @{
+                  refName = "refs/heads/yaml-pipeline"
+                }
+              }
+            };
+          } | ConvertTo-Json -Depth 10
+
+        Write-Host "Posting to $launchURI"
+        Write-Host $jsonBody
+        $encoded = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes(":${adoBuildPat}"))
+        $headers = @{ Authorization = "Basic $encoded"}
+
+        $response = Invoke-WebRequest -UseBasicParsing -Method POST -Headers $headers -Uri $launchURI -Body $jsonBody -ContentType 'application/json'
+        echo "Job successfully launched"
+        $message = "Rebase Job Created!"
+      } catch {
+        Write-Host $_.Exception.Message
+        $message = "I couldn't rebase. :( Please check the Action logs for more details."
+        $statusCode = 1
+      } finally {
+        $jsonBody = @{
+          body = $message
+        } | ConvertTo-Json
+
+        $headers = @{ Authorization = "token ${gitHubAccountPat}"}
+        $uri = "https://api.github.com/repos/${gitHubRepository}/issues/${{ steps.get_parameters.outputs.pr_number }}/comments"
+
+
+        Write-Host "Posting to $uri"
+        Write-Host "$jsonBody"
+        Invoke-WebRequest -UseBasicParsing -Headers $headers -Method POST -Uri $uri -Body $jsonBody -ContentType 'application/json'
+      }
+      return $statusCode
