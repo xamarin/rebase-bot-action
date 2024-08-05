@@ -1,0 +1,98 @@
+# Xamarin Rebase Bot build definition: https://devdiv.visualstudio.com/DevDiv/_apps/hub/ms.vss-ciworkflow.build-ci-hub?_a=edit-build-definition&id=13926&view=Tab_Tasks
+
+trigger: none
+
+parameters:
+  - name: RepoName
+    displayName: Repository Name
+    type: string
+  - name: RepoOrg
+    displayName: Repository Organization
+    type: string
+  - name: SourceBranch
+    displayName: Branch that needs to be repointed to the latest of the PR target
+    type: string
+  - name: TargetBranch
+    displayName: Target Branch of the PR
+    type: string
+  - name: PRNumber
+    displayName: Pull Request Number
+    type: number
+
+variables:
+  - name: GitHubEndpoint
+    value: ${{ parameters.RepoOrg }}
+  - name: SourceRepo
+    value: ${{ parameters.RepoOrg }}/${{ parameters.RepoName }}
+  - name: SourceBranch
+    value: ${{ parameters.SourceBranch }}
+  - name: TargetBranch
+    value: ${{ parameters.TargetBranch }}
+  - group: Xamarin-Secrets
+
+resources:
+  repositories:
+    - repository: rebaseRepo
+      type: github
+      # TODO: is there a way to not hardcode the endpoint?
+      endpoint: xamarin
+      name: $(SourceRepo)
+      ref: $(SourceBranch)
+
+jobs:
+  - job: RebaseBot
+    pool:
+      vmImage: ubuntu-latest
+
+    variables:
+      - name: WorkingDir
+        value: $(Build.SourcesDirectory)/${{ parameters.RepoName }}
+
+    steps:
+    - checkout: self
+    - checkout: rebaseRepo
+      persistCredentials: true
+
+    # TODO: redundant, but echo git version
+    - powershell: |
+        git --version
+        git checkout $(SourceBranch)
+        git status > $(Build.ArtifactStagingDirectory)/git_status.txt
+        Get-Content $(Build.ArtifactStagingDirectory)/git_status.txt
+        git diff > $(Build.ArtifactStagingDirectory)/git_diff.txt
+      workingDirectory: $(WorkingDir)
+      displayName: Check Branch Status
+
+    - powershell: |
+        git config user.email "valco@microsoft.com"
+        git config user.name "vs-mobiletools-engineering-service2"
+        git fetch origin $(TargetBranch)
+        git rebase origin/$(TargetBranch)
+        git push --force-with-lease
+      workingDirectory: $(WorkingDir)
+      displayName: Perform Rebase
+
+    - powershell: |
+        if ("$(Agent.JobStatus)".Equals("Succeeded")) {
+          $state = "success"
+          $desc = "succeeded"
+          $message = "Hooray"
+        } else {
+          $state = "failure"
+          $desc = "failed"
+          $message = "Oh no"
+        }
+
+        $buildUri = "$(System.CollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)"
+        $headers = @{ Authorization = "token $(github--pat--vs-mobiletools-engineering-service2)" }
+
+        # Comment on the original PR
+        $commentJson = @{
+          body = "$message! Rebase $desc`! Please see $buildUri for more details."
+        } | ConvertTo-Json -Compress
+
+        $commentApi = "https://api.github.com/repos/${{ parameters.RepoOrg }}/${{ parameters.RepoName }}/issues/${{ parameters.PRNumber }}/comments"
+        Write-Host "Commenting on original PR via $commentApi"
+        Invoke-WebRequest -UseBasicParsing -Method POST -Headers $headers -Uri $commentApi -Body $commentJson
+      displayName: Report Status on PR
+      condition: always()
