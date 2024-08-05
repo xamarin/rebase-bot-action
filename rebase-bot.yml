@@ -1,3 +1,5 @@
+# Xamarin Rebase Bot build definition: https://devdiv.visualstudio.com/DevDiv/_apps/hub/ms.vss-ciworkflow.build-ci-hub?_a=edit-build-definition&id=13926&view=Tab_Tasks
+
 trigger: none
 
 parameters:
