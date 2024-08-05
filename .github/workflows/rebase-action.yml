@@ -176,14 +176,41 @@ jobs:
       }
       return $statusCode
 
-  - name: Launch ADO Build
+  - name: Log into Azure
+    id: log-into-azure
+    uses: azure/login@v2    # https://github.com/marketplace/actions/azure-login
+    with:
+      tenant-id: ${{ env.AZURE_TENANT_ID }}
+      subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
+      client-id: ${{ env.AZURE_CLIENT_ID }}
+      auth-type: SERVICE_PRINCIPAL
+
+  - name: Set Azure DevOps access token
+    id: set-azdo-token
+    uses: azure/cli@v2      # https://github.com/marketplace/actions/azure-cli-action
+    with:
+      azcliversion: latest
+      inlineScript: |
+        az version
+        az account show
+        echo "Acquiring Azure DevOps access token"
+        adoAccessToken=$(az account get-access-token --query accessToken --resource 499b84ac-1321-427f-aa17-267ca6975798 -o tsv)
+        adoAccessTokenHint="[not set]"
+        if [[ -n $adoAccessToken ]]; then
+            adoAccessTokenHint="${adoAccessToken:0:7}"
+        fi
+        echo "Azure DevOps access token (hint): ${adoAccessTokenHint}"
+        # https://docs.github.com/en/actions/using-workflows/workflow-commands-for-github-actions#setting-an-output-parameter
+        # https://stackoverflow.com/questions/57819539/github-actions-how-to-share-a-calculated-value-between-job-steps
+        echo "AZDO_ACCESS_TOKEN=${adoAccessToken}" >> $GITHUB_OUTPUT
+
+  - name: Launch Rebase Build
     shell: pwsh
     id: ado_build
     run: |
       $adoOrganization = $env:ADO_ORGANIZATION
       $adoProject = $env:ADO_PROJECT
       $adoPipelineId = $env:REBASE_PIPELINE_ID
-      $adoBuildPat = $env:ADO_BUILD_PAT
       $gitHubRepository = $env:GITHUB_REPOSITORY
       $gitHubAccountPat = $env:GITHUB_ACCOUNT_PAT
 
@@ -191,6 +218,16 @@ jobs:
       Write-Host "ADO_PROJECT: ${adoProject}"
       Write-Host "ADO_PIPELINE_ID: ${adoPipelineId}"
       Write-Host "GITHUB_REPOSITORY: ${gitHubRepository}"
+
+      $adoAccessToken = "${{ steps.set-azdo-token.outputs.AZDO_ACCESS_TOKEN }}"
+
+      if (-not ([string]::IsNullOrEmpty($adoAccessToken))) {
+          $adoAccessTokenHint = $adoAccessToken.Substring(0, 7)
+      } else {
+          $adoAccessTokenHint = "[not set]"
+      }
+
+      Write-Host "Azure DevOps access token (hint): ${adoAccessTokenHint}"
 
       $message = ""
       $statusCode = 0
@@ -214,7 +251,7 @@ jobs:
 
         Write-Host "Posting to $launchURI"
         Write-Host $jsonBody
-        $encoded = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes(":${adoBuildPat}"))
+        $encoded = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes(":${adoAccessToken}"))
         $headers = @{ Authorization = "Basic $encoded"}
 
         Write-Host "Launching the rebase Azure DevOps build: ${launchURI}"
