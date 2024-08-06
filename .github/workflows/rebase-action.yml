@@ -50,234 +50,234 @@ jobs:
       contents: read
       security-events: none
       id-token: write
-  env:
-    PULL_REQUEST_URL: "${{ inputs.pull_request_url }}"
-    COMMENT_AUTHOR: "${{ inputs.comment_author }}"
-    GITHUB_REPOSITORY: "${{ inputs.github_repository }}"
-    AZURE_TENANT_ID: "${{ secrets.azure_tenant_id }}"
-    AZURE_SUBSCRIPTION_ID: "${{ secrets.azure_subscription_id }}"
-    AZURE_CLIENT_ID: "${{ secrets.azure_client_id }}"
-    ADO_ORGANIZATION: "${{ secrets.ado_organization }}"
-    ADO_PROJECT: "${{ secrets.ado_project }}"
-    REBASE_PIPELINE_ID: "${{ secrets.rebase_pipeline_id }}"
-    GITHUB_ACCOUNT_PAT: "${{ secrets.github_account_pat }}"
+    env:
+      PULL_REQUEST_URL: "${{ inputs.pull_request_url }}"
+      COMMENT_AUTHOR: "${{ inputs.comment_author }}"
+      GITHUB_REPOSITORY: "${{ inputs.github_repository }}"
+      AZURE_TENANT_ID: "${{ secrets.azure_tenant_id }}"
+      AZURE_SUBSCRIPTION_ID: "${{ secrets.azure_subscription_id }}"
+      AZURE_CLIENT_ID: "${{ secrets.azure_client_id }}"
+      ADO_ORGANIZATION: "${{ secrets.ado_organization }}"
+      ADO_PROJECT: "${{ secrets.ado_project }}"
+      REBASE_PIPELINE_ID: "${{ secrets.rebase_pipeline_id }}"
+      GITHUB_ACCOUNT_PAT: "${{ secrets.github_account_pat }}"
 
-  steps:
-  - name: Show parameters
-    id: show-parameters
-    shell: pwsh
-    run: |
-      $gitHubRepository = $env:GITHUB_REPOSITORY
-      $commentAuthor = $env:COMMENT_AUTHOR
-      $pullRequestUrl = $env:PULL_REQUEST_URL
-      $backportTargetBranch = $env:TARGET_BRANCH
-      $useFork = $env:USE_FORK
+    steps:
+      - name: Show parameters
+        id: show-parameters
+        shell: pwsh
+        run: |
+          $gitHubRepository = $env:GITHUB_REPOSITORY
+          $commentAuthor = $env:COMMENT_AUTHOR
+          $pullRequestUrl = $env:PULL_REQUEST_URL
+          $backportTargetBranch = $env:TARGET_BRANCH
+          $useFork = $env:USE_FORK
 
-      Write-Host "GITHUB_REPOSITORY: ${gitHubRepository}"
-      Write-Host "COMMENT_AUTHOR: ${commentAuthor}"
-      Write-Host "PULL_REQUEST_URL: ${pullRequestUrl}"
-      Write-Host "TARGET_BRANCH: ${backportTargetBranch}"
-      Write-Host "USE_FORK: ${useFork}"
+          Write-Host "GITHUB_REPOSITORY: ${gitHubRepository}"
+          Write-Host "COMMENT_AUTHOR: ${commentAuthor}"
+          Write-Host "PULL_REQUEST_URL: ${pullRequestUrl}"
+          Write-Host "TARGET_BRANCH: ${backportTargetBranch}"
+          Write-Host "USE_FORK: ${useFork}"
 
-      $gitHubAccountPAT = $env:GITHUB_ACCOUNT_PAT
-      if (-not ([string]::IsNullOrEmpty($gitHubAccountPAT))) {
-          $gitHubAccountPATHint = $gitHubAccountPAT.Substring(0, 8)
-      } else {
-          $gitHubAccountPATHint = '[not set]'
-      }
+          $gitHubAccountPAT = $env:GITHUB_ACCOUNT_PAT
+          if (-not ([string]::IsNullOrEmpty($gitHubAccountPAT))) {
+              $gitHubAccountPATHint = $gitHubAccountPAT.Substring(0, 8)
+          } else {
+              $gitHubAccountPATHint = '[not set]'
+          }
 
-      Write-Host "GITHUB_ACCOUNT_PAT (hint): ${gitHubAccountPATHint}"
+          Write-Host "GITHUB_ACCOUNT_PAT (hint): ${gitHubAccountPATHint}"
 
-      $azureTenantId = $env:AZURE_TENANT_ID
-      if (-not ([string]::IsNullOrEmpty($azureTenantId))) {
-          $azureTenantIdHint = $azureTenantId.Substring(0, 8)
-      } else {
-          $azureTenantIdHint = '[not set]'
-      }
+          $azureTenantId = $env:AZURE_TENANT_ID
+          if (-not ([string]::IsNullOrEmpty($azureTenantId))) {
+              $azureTenantIdHint = $azureTenantId.Substring(0, 8)
+          } else {
+              $azureTenantIdHint = '[not set]'
+          }
 
-      Write-Host "AZURE_TENTANT_ID (hint): ${azureTenantIdHint}"
+          Write-Host "AZURE_TENTANT_ID (hint): ${azureTenantIdHint}"
 
-      $azureSubscriptionId = $env:AZURE_SUBSCRIPTION_ID
-      if (-not ([string]::IsNullOrEmpty($azureSubscriptionId))) {
-          $azureSubscriptionIdHint = $azureSubscriptionId.Substring(0, 8)
-      } else {
-          $azureSubscriptionIdHint = '[not set]'
-      }
+          $azureSubscriptionId = $env:AZURE_SUBSCRIPTION_ID
+          if (-not ([string]::IsNullOrEmpty($azureSubscriptionId))) {
+              $azureSubscriptionIdHint = $azureSubscriptionId.Substring(0, 8)
+          } else {
+              $azureSubscriptionIdHint = '[not set]'
+          }
 
-      Write-Host "AZURE_SUBSCRIPTION_ID (hint): ${azureSubscriptionIdHint}"
+          Write-Host "AZURE_SUBSCRIPTION_ID (hint): ${azureSubscriptionIdHint}"
 
-      $azureClientId = $env:AZURE_CLIENT_ID
-      if (-not ([string]::IsNullOrEmpty($azureClientId))) {
-          $azureClientIdHint = $azureClientId.Substring(0, 8)
-      } else {
-          $azureClientIdHint = '[not set]'
-      }
+          $azureClientId = $env:AZURE_CLIENT_ID
+          if (-not ([string]::IsNullOrEmpty($azureClientId))) {
+              $azureClientIdHint = $azureClientId.Substring(0, 8)
+          } else {
+              $azureClientIdHint = '[not set]'
+          }
 
-      Write-Host "AZURE_CLIENT_ID (hint): ${azureClientIdHint}"
+          Write-Host "AZURE_CLIENT_ID (hint): ${azureClientIdHint}"
 
-  - name: Gather Parameters
-    shell: pwsh
-    id: get_parameters
-    run: |
-      $githubRepository = $env:GITHUB_REPOSITORY
-      $commentAuthor = $env:COMMENT_AUTHOR
-      $pullRequestUrl = $env:PULL_REQUEST_URL
-      $githubAccountPat = $env:GITHUB_ACCOUNT_PAT
+      - name: Gather Parameters
+        shell: pwsh
+        id: get_parameters
+        run: |
+          $githubRepository = $env:GITHUB_REPOSITORY
+          $commentAuthor = $env:COMMENT_AUTHOR
+          $pullRequestUrl = $env:PULL_REQUEST_URL
+          $githubAccountPat = $env:GITHUB_ACCOUNT_PAT
 
-      Write-Host "GITHUB_REPOSITORY: ${githubRepository}"
-      Write-Host "COMMENT_AUTHOR: ${commentAuthor}"
-      Write-Host "PULL_REQUEST_URL: ${pullRequestUrl}"
+          Write-Host "GITHUB_REPOSITORY: ${githubRepository}"
+          Write-Host "COMMENT_AUTHOR: ${commentAuthor}"
+          Write-Host "PULL_REQUEST_URL: ${pullRequestUrl}"
 
-      if (-not ([string]::IsNullOrEmpty($gitHubAccountPAT))) {
-          $gitHubAccountPATHint = $gitHubAccountPAT.Substring(0, 8)
-      } else {
-          $gitHubAccountPATHint = '[not set]'
-      }
+          if (-not ([string]::IsNullOrEmpty($gitHubAccountPAT))) {
+              $gitHubAccountPATHint = $gitHubAccountPAT.Substring(0, 8)
+          } else {
+              $gitHubAccountPATHint = '[not set]'
+          }
 
-      Write-Host "GITHUB_ACCOUNT_PAT (hint): ${gitHubAccountPATHint}"
+          Write-Host "GITHUB_ACCOUNT_PAT (hint): ${gitHubAccountPATHint}"
 
-      $statusCode = 0
-      try {
-        ($repoOwner, $repoName) = $githubRepository.Split("/")
-        $headers = @{ Authorization = "token ${githubAccountPat}" }
-        $uri = "https://api.github.com/repos/$repoOwner/$repoName/collaborators/${commentAuthor}/permission"
-        Write-Host "Checking $repoOwner membership for ${commentAuthor} via $uri"
-        $response = Invoke-WebRequest -Headers $headers -Uri $uri
-        $content = $response.Content | ConvertFrom-Json
-        $accessType = $content.permission
-        Write-Host "Found membership: $accessType"
-        if (-not ($accessType.Equals("admin") -or $accessType.Equals("write"))) {
-          throw "${commentAuthor}/permission does not have sufficient permissions for ${githubRepository}"
-        }
+          $statusCode = 0
+          try {
+            ($repoOwner, $repoName) = $githubRepository.Split("/")
+            $headers = @{ Authorization = "token ${githubAccountPat}" }
+            $uri = "https://api.github.com/repos/$repoOwner/$repoName/collaborators/${commentAuthor}/permission"
+            Write-Host "Checking $repoOwner membership for ${commentAuthor} via $uri"
+            $response = Invoke-WebRequest -Headers $headers -Uri $uri
+            $content = $response.Content | ConvertFrom-Json
+            $accessType = $content.permission
+            Write-Host "Found membership: $accessType"
+            if (-not ($accessType.Equals("admin") -or $accessType.Equals("write"))) {
+              throw "${commentAuthor}/permission does not have sufficient permissions for ${githubRepository}"
+            }
 
-        Write-Host "Grabbing PR details from ${pullRequestUrl}"
-        $response = Invoke-WebRequest -UseBasicParsing -Headers $headers -Uri $pullRequestUrl | ConvertFrom-Json
-        $PRNumber = $response.number
-        $sourceBranch = $response.head.ref
-        $targetBranch = $response.base.ref
+            Write-Host "Grabbing PR details from ${pullRequestUrl}"
+            $response = Invoke-WebRequest -UseBasicParsing -Headers $headers -Uri $pullRequestUrl | ConvertFrom-Json
+            $PRNumber = $response.number
+            $sourceBranch = $response.head.ref
+            $targetBranch = $response.base.ref
 
-        $parameters = @{
-          RepoName = $repoName
-          RepoOrg = $repoOwner
-          SourceBranch = $sourceBranch
-          TargetBranch = $targetBranch
-          PRNumber = $PRNumber
-        } | ConvertTo-Json -Compress
+            $parameters = @{
+              RepoName = $repoName
+              RepoOrg = $repoOwner
+              SourceBranch = $sourceBranch
+              TargetBranch = $targetBranch
+              PRNumber = $PRNumber
+            } | ConvertTo-Json -Compress
 
-        $json = $parameters.Replace("`"","'")
+            $json = $parameters.Replace("`"","'")
 
-        Write-Host "Setting output variables"
-        Write-Host "GITHUB_OUTPUT: ${env:GITHUB_OUTPUT}"
-        [IO.File]::AppendAllText($env:GITHUB_OUTPUT, "parameters=${json}$([Environment]::NewLine)")                 # Equivalent to the deprecated ::set-output command: https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions#jobsjob_idoutputs
-        [IO.File]::AppendAllText($env:GITHUB_OUTPUT, "pr_number=${PRNumber}$([Environment]::NewLine)")
-      } catch {
-        Write-Host $_.Exception.Message
-        $statusCode = 1
-      }
-      return $statusCode
+            Write-Host "Setting output variables"
+            Write-Host "GITHUB_OUTPUT: ${env:GITHUB_OUTPUT}"
+            [IO.File]::AppendAllText($env:GITHUB_OUTPUT, "parameters=${json}$([Environment]::NewLine)")                 # Equivalent to the deprecated ::set-output command: https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions#jobsjob_idoutputs
+            [IO.File]::AppendAllText($env:GITHUB_OUTPUT, "pr_number=${PRNumber}$([Environment]::NewLine)")
+          } catch {
+            Write-Host $_.Exception.Message
+            $statusCode = 1
+          }
+          return $statusCode
 
-  - name: Log into Azure
-    id: log-into-azure
-    uses: azure/login@v2    # https://github.com/marketplace/actions/azure-login
-    with:
-      tenant-id: ${{ env.AZURE_TENANT_ID }}
-      subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
-      client-id: ${{ env.AZURE_CLIENT_ID }}
-      auth-type: SERVICE_PRINCIPAL
+      - name: Log into Azure
+        id: log-into-azure
+        uses: azure/login@v2    # https://github.com/marketplace/actions/azure-login
+        with:
+          tenant-id: ${{ env.AZURE_TENANT_ID }}
+          subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
+          client-id: ${{ env.AZURE_CLIENT_ID }}
+          auth-type: SERVICE_PRINCIPAL
 
-  - name: Set Azure DevOps access token
-    id: set-azdo-token
-    uses: azure/cli@v2      # https://github.com/marketplace/actions/azure-cli-action
-    with:
-      azcliversion: latest
-      inlineScript: |
-        az version
-        az account show
-        echo "Acquiring Azure DevOps access token"
-        adoAccessToken=$(az account get-access-token --query accessToken --resource 499b84ac-1321-427f-aa17-267ca6975798 -o tsv)
-        adoAccessTokenHint="[not set]"
-        if [[ -n $adoAccessToken ]]; then
-            adoAccessTokenHint="${adoAccessToken:0:7}"
-        fi
-        echo "Azure DevOps access token (hint): ${adoAccessTokenHint}"
-        # https://docs.github.com/en/actions/using-workflows/workflow-commands-for-github-actions#setting-an-output-parameter
-        # https://stackoverflow.com/questions/57819539/github-actions-how-to-share-a-calculated-value-between-job-steps
-        echo "AZDO_ACCESS_TOKEN=${adoAccessToken}" >> $GITHUB_OUTPUT
+      - name: Set Azure DevOps access token
+        id: set-azdo-token
+        uses: azure/cli@v2      # https://github.com/marketplace/actions/azure-cli-action
+        with:
+          azcliversion: latest
+          inlineScript: |
+            az version
+            az account show
+            echo "Acquiring Azure DevOps access token"
+            adoAccessToken=$(az account get-access-token --query accessToken --resource 499b84ac-1321-427f-aa17-267ca6975798 -o tsv)
+            adoAccessTokenHint="[not set]"
+            if [[ -n $adoAccessToken ]]; then
+                adoAccessTokenHint="${adoAccessToken:0:7}"
+            fi
+            echo "Azure DevOps access token (hint): ${adoAccessTokenHint}"
+            # https://docs.github.com/en/actions/using-workflows/workflow-commands-for-github-actions#setting-an-output-parameter
+            # https://stackoverflow.com/questions/57819539/github-actions-how-to-share-a-calculated-value-between-job-steps
+            echo "AZDO_ACCESS_TOKEN=${adoAccessToken}" >> $GITHUB_OUTPUT
 
-  - name: Launch Rebase Build
-    shell: pwsh
-    id: ado_build
-    run: |
-      $adoOrganization = $env:ADO_ORGANIZATION
-      $adoProject = $env:ADO_PROJECT
-      $adoPipelineId = $env:REBASE_PIPELINE_ID
-      $gitHubRepository = $env:GITHUB_REPOSITORY
-      $gitHubAccountPat = $env:GITHUB_ACCOUNT_PAT
+      - name: Launch Rebase Build
+        shell: pwsh
+        id: ado_build
+        run: |
+          $adoOrganization = $env:ADO_ORGANIZATION
+          $adoProject = $env:ADO_PROJECT
+          $adoPipelineId = $env:REBASE_PIPELINE_ID
+          $gitHubRepository = $env:GITHUB_REPOSITORY
+          $gitHubAccountPat = $env:GITHUB_ACCOUNT_PAT
 
-      Write-Host "ADO_ORGANIZATION: ${adoOrganization}"
-      Write-Host "ADO_PROJECT: ${adoProject}"
-      Write-Host "ADO_PIPELINE_ID: ${adoPipelineId}"
-      Write-Host "GITHUB_REPOSITORY: ${gitHubRepository}"
+          Write-Host "ADO_ORGANIZATION: ${adoOrganization}"
+          Write-Host "ADO_PROJECT: ${adoProject}"
+          Write-Host "ADO_PIPELINE_ID: ${adoPipelineId}"
+          Write-Host "GITHUB_REPOSITORY: ${gitHubRepository}"
 
-      $adoAccessToken = "${{ steps.set-azdo-token.outputs.AZDO_ACCESS_TOKEN }}"
+          $adoAccessToken = "${{ steps.set-azdo-token.outputs.AZDO_ACCESS_TOKEN }}"
 
-      if (-not ([string]::IsNullOrEmpty($adoAccessToken))) {
-          $adoAccessTokenHint = $adoAccessToken.Substring(0, 7)
-      } else {
-          $adoAccessTokenHint = "[not set]"
-      }
+          if (-not ([string]::IsNullOrEmpty($adoAccessToken))) {
+              $adoAccessTokenHint = $adoAccessToken.Substring(0, 7)
+          } else {
+              $adoAccessTokenHint = "[not set]"
+          }
 
-      Write-Host "Azure DevOps access token (hint): ${adoAccessTokenHint}"
+          Write-Host "Azure DevOps access token (hint): ${adoAccessTokenHint}"
 
-      $message = ""
-      $statusCode = 0
-      try {
-        $launchURI = "https://dev.azure.com/${adoOrganization}/${adoProject}/_apis/pipelines/${adoPipelineId}/runs?api-version=6.0-preview.1"
-        Write-Host "LaunchURI: ${launchURI}"
-        Write-Host "Grabbing parameters from prior step"
-        $parameters = ConvertFrom-Json "${{ steps.get_parameters.outputs.parameters }}"
-        Write-Host $parameters
-        $jsonBody = @{
-            previewRun = false;
-            templateParameters = $parameters;
-            resources = @{
-              repositories = @{
-                self = @{
-                  refName = "refs/heads/yaml-pipeline"
-                }
-              }
-            };
-          } | ConvertTo-Json -Depth 10
+          $message = ""
+          $statusCode = 0
+          try {
+            $launchURI = "https://dev.azure.com/${adoOrganization}/${adoProject}/_apis/pipelines/${adoPipelineId}/runs?api-version=6.0-preview.1"
+            Write-Host "LaunchURI: ${launchURI}"
+            Write-Host "Grabbing parameters from prior step"
+            $parameters = ConvertFrom-Json "${{ steps.get_parameters.outputs.parameters }}"
+            Write-Host $parameters
+            $jsonBody = @{
+                previewRun = false;
+                templateParameters = $parameters;
+                resources = @{
+                  repositories = @{
+                    self = @{
+                      refName = "refs/heads/yaml-pipeline"
+                    }
+                  }
+                };
+              } | ConvertTo-Json -Depth 10
 
-        Write-Host "Posting to $launchURI"
-        Write-Host $jsonBody
-        $encoded = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes(":${adoAccessToken}"))
-        $headers = @{ Authorization = "Basic $encoded"}
+            Write-Host "Posting to $launchURI"
+            Write-Host $jsonBody
+            $encoded = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes(":${adoAccessToken}"))
+            $headers = @{ Authorization = "Basic $encoded"}
 
-        Write-Host "Launching the rebase Azure DevOps build: ${launchURI}"
-        Write-Host $jsonBody
+            Write-Host "Launching the rebase Azure DevOps build: ${launchURI}"
+            Write-Host $jsonBody
 
-        $response = Invoke-WebRequest -UseBasicParsing -Method POST -Headers $headers -Uri $launchURI -Body $jsonBody -ContentType 'application/json'
-        $responseJson = ConvertFrom-Json $response.Content
+            $response = Invoke-WebRequest -UseBasicParsing -Method POST -Headers $headers -Uri $launchURI -Body $jsonBody -ContentType 'application/json'
+            $responseJson = ConvertFrom-Json $response.Content
 
-        Write-Host "Job successfully launched"
-        Write-Host $responseJson
-        $message = "Rebase Job Created!"
-      } catch {
-        Write-Host $_.Exception.Message
-        $message = "I couldn't rebase. :( Please check the Action logs for more details."
-        $statusCode = 1
-      } finally {
-        $jsonBody = @{
-          body = $message
-        } | ConvertTo-Json
+            Write-Host "Job successfully launched"
+            Write-Host $responseJson
+            $message = "Rebase Job Created!"
+          } catch {
+            Write-Host $_.Exception.Message
+            $message = "I couldn't rebase. :( Please check the Action logs for more details."
+            $statusCode = 1
+          } finally {
+            $jsonBody = @{
+              body = $message
+            } | ConvertTo-Json
 
-        $headers = @{ Authorization = "token ${gitHubAccountPat}"}
-        $uri = "https://api.github.com/repos/${gitHubRepository}/issues/${{ steps.get_parameters.outputs.pr_number }}/comments"
+            $headers = @{ Authorization = "token ${gitHubAccountPat}"}
+            $uri = "https://api.github.com/repos/${gitHubRepository}/issues/${{ steps.get_parameters.outputs.pr_number }}/comments"
 
 
-        Write-Host "Posting to $uri"
-        Write-Host "$jsonBody"
-        Invoke-WebRequest -UseBasicParsing -Headers $headers -Method POST -Uri $uri -Body $jsonBody -ContentType 'application/json'
-      }
-      return $statusCode
+            Write-Host "Posting to $uri"
+            Write-Host "$jsonBody"
+            Invoke-WebRequest -UseBasicParsing -Headers $headers -Method POST -Uri $uri -Body $jsonBody -ContentType 'application/json'
+          }
+          return $statusCode
