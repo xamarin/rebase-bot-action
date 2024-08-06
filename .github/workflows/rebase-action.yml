@@ -17,6 +17,15 @@ on:
         type: string
         required: true
     secrets:
+      azure_tenant_id:
+        description: Tenant associated with the managed identity used to log into Azure
+        required: false
+      azure_subscription_id:
+        description: Subscription associated with the managed identity used to log into Azure
+        required: false
+      azure_client_id:
+        description: Client id associated with the managed identity used to log into Azure
+        required: false
       ado_organization:
         description: Azure DevOps organization that hosts the rebase job
         required: true
@@ -25,9 +34,6 @@ on:
         required: true
       rebase_pipeline_id:
         description: ID of the rebase yaml pipeline in Azure DevOps
-        required: true
-      ado_build_pat:
-        description: PAT of an account that can launch builds on the rebase pipeline in Azure DevOps
         required: true
       github_account_pat:
         description: PAT for a github account that has write access to source repository
@@ -48,13 +54,67 @@ jobs:
     PULL_REQUEST_URL: "${{ inputs.pull_request_url }}"
     COMMENT_AUTHOR: "${{ inputs.comment_author }}"
     GITHUB_REPOSITORY: "${{ inputs.github_repository }}"
+    AZURE_TENANT_ID: "${{ secrets.azure_tenant_id }}"
+    AZURE_SUBSCRIPTION_ID: "${{ secrets.azure_subscription_id }}"
+    AZURE_CLIENT_ID: "${{ secrets.azure_client_id }}"
     ADO_ORGANIZATION: "${{ secrets.ado_organization }}"
     ADO_PROJECT: "${{ secrets.ado_project }}"
     REBASE_PIPELINE_ID: "${{ secrets.rebase_pipeline_id }}"
-    ADO_BUILD_PAT: "${{ secrets.ado_build_pat }}"
     GITHUB_ACCOUNT_PAT: "${{ secrets.github_account_pat }}"
 
   steps:
+  - name: Show parameters
+    id: show-parameters
+    shell: pwsh
+    run: |
+      $gitHubRepository = $env:GITHUB_REPOSITORY
+      $commentAuthor = $env:COMMENT_AUTHOR
+      $pullRequestUrl = $env:PULL_REQUEST_URL
+      $backportTargetBranch = $env:TARGET_BRANCH
+      $useFork = $env:USE_FORK
+
+      Write-Host "GITHUB_REPOSITORY: ${gitHubRepository}"
+      Write-Host "COMMENT_AUTHOR: ${commentAuthor}"
+      Write-Host "PULL_REQUEST_URL: ${pullRequestUrl}"
+      Write-Host "TARGET_BRANCH: ${backportTargetBranch}"
+      Write-Host "USE_FORK: ${useFork}"
+
+      $gitHubAccountPAT = $env:GITHUB_ACCOUNT_PAT
+      if (-not ([string]::IsNullOrEmpty($gitHubAccountPAT))) {
+          $gitHubAccountPATHint = $gitHubAccountPAT.Substring(0, 8)
+      } else {
+          $gitHubAccountPATHint = '[not set]'
+      }
+
+      Write-Host "GITHUB_ACCOUNT_PAT (hint): ${gitHubAccountPATHint}"
+
+      $azureTenantId = $env:AZURE_TENANT_ID
+      if (-not ([string]::IsNullOrEmpty($azureTenantId))) {
+          $azureTenantIdHint = $azureTenantId.Substring(0, 8)
+      } else {
+          $azureTenantIdHint = '[not set]'
+      }
+
+      Write-Host "AZURE_TENTANT_ID (hint): ${azureTenantIdHint}"
+
+      $azureSubscriptionId = $env:AZURE_SUBSCRIPTION_ID
+      if (-not ([string]::IsNullOrEmpty($azureSubscriptionId))) {
+          $azureSubscriptionIdHint = $azureSubscriptionId.Substring(0, 8)
+      } else {
+          $azureSubscriptionIdHint = '[not set]'
+      }
+
+      Write-Host "AZURE_SUBSCRIPTION_ID (hint): ${azureSubscriptionIdHint}"
+
+      $azureClientId = $env:AZURE_CLIENT_ID
+      if (-not ([string]::IsNullOrEmpty($azureClientId))) {
+          $azureClientIdHint = $azureClientId.Substring(0, 8)
+      } else {
+          $azureClientIdHint = '[not set]'
+      }
+
+      Write-Host "AZURE_CLIENT_ID (hint): ${azureClientIdHint}"
+
   - name: Gather Parameters
     shell: pwsh
     id: get_parameters
@@ -116,14 +176,41 @@ jobs:
       }
       return $statusCode
 
-  - name: Launch ADO Build
+  - name: Log into Azure
+    id: log-into-azure
+    uses: azure/login@v2    # https://github.com/marketplace/actions/azure-login
+    with:
+      tenant-id: ${{ env.AZURE_TENANT_ID }}
+      subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
+      client-id: ${{ env.AZURE_CLIENT_ID }}
+      auth-type: SERVICE_PRINCIPAL
+
+  - name: Set Azure DevOps access token
+    id: set-azdo-token
+    uses: azure/cli@v2      # https://github.com/marketplace/actions/azure-cli-action
+    with:
+      azcliversion: latest
+      inlineScript: |
+        az version
+        az account show
+        echo "Acquiring Azure DevOps access token"
+        adoAccessToken=$(az account get-access-token --query accessToken --resource 499b84ac-1321-427f-aa17-267ca6975798 -o tsv)
+        adoAccessTokenHint="[not set]"
+        if [[ -n $adoAccessToken ]]; then
+            adoAccessTokenHint="${adoAccessToken:0:7}"
+        fi
+        echo "Azure DevOps access token (hint): ${adoAccessTokenHint}"
+        # https://docs.github.com/en/actions/using-workflows/workflow-commands-for-github-actions#setting-an-output-parameter
+        # https://stackoverflow.com/questions/57819539/github-actions-how-to-share-a-calculated-value-between-job-steps
+        echo "AZDO_ACCESS_TOKEN=${adoAccessToken}" >> $GITHUB_OUTPUT
+
+  - name: Launch Rebase Build
     shell: pwsh
     id: ado_build
     run: |
       $adoOrganization = $env:ADO_ORGANIZATION
       $adoProject = $env:ADO_PROJECT
       $adoPipelineId = $env:REBASE_PIPELINE_ID
-      $adoBuildPat = $env:ADO_BUILD_PAT
       $gitHubRepository = $env:GITHUB_REPOSITORY
       $gitHubAccountPat = $env:GITHUB_ACCOUNT_PAT
 
@@ -131,6 +218,16 @@ jobs:
       Write-Host "ADO_PROJECT: ${adoProject}"
       Write-Host "ADO_PIPELINE_ID: ${adoPipelineId}"
       Write-Host "GITHUB_REPOSITORY: ${gitHubRepository}"
+
+      $adoAccessToken = "${{ steps.set-azdo-token.outputs.AZDO_ACCESS_TOKEN }}"
+
+      if (-not ([string]::IsNullOrEmpty($adoAccessToken))) {
+          $adoAccessTokenHint = $adoAccessToken.Substring(0, 7)
+      } else {
+          $adoAccessTokenHint = "[not set]"
+      }
+
+      Write-Host "Azure DevOps access token (hint): ${adoAccessTokenHint}"
 
       $message = ""
       $statusCode = 0
@@ -154,7 +251,7 @@ jobs:
 
         Write-Host "Posting to $launchURI"
         Write-Host $jsonBody
-        $encoded = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes(":${adoBuildPat}"))
+        $encoded = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes(":${adoAccessToken}"))
         $headers = @{ Authorization = "Basic $encoded"}
 
         Write-Host "Launching the rebase Azure DevOps build: ${launchURI}"
