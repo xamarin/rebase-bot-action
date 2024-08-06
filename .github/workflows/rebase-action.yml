@@ -243,7 +243,7 @@ jobs:
                 resources = @{
                   repositories = @{
                     self = @{
-                      refName = "refs/heads/yaml-pipeline"
+                      refName = "refs/heads/main"
                     }
                   }
                 };
