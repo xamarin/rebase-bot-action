@@ -70,14 +70,10 @@ jobs:
           $gitHubRepository = $env:GITHUB_REPOSITORY
           $commentAuthor = $env:COMMENT_AUTHOR
           $pullRequestUrl = $env:PULL_REQUEST_URL
-          $backportTargetBranch = $env:TARGET_BRANCH
-          $useFork = $env:USE_FORK
 
           Write-Host "GITHUB_REPOSITORY: ${gitHubRepository}"
           Write-Host "COMMENT_AUTHOR: ${commentAuthor}"
           Write-Host "PULL_REQUEST_URL: ${pullRequestUrl}"
-          Write-Host "TARGET_BRANCH: ${backportTargetBranch}"
-          Write-Host "USE_FORK: ${useFork}"
 
           $gitHubAccountPAT = $env:GITHUB_ACCOUNT_PAT
           if (-not ([string]::IsNullOrEmpty($gitHubAccountPAT))) {
@@ -142,7 +138,7 @@ jobs:
             $headers = @{ Authorization = "token ${githubAccountPat}" }
             $uri = "https://api.github.com/repos/$repoOwner/$repoName/collaborators/${commentAuthor}/permission"
             Write-Host "Checking $repoOwner membership for ${commentAuthor} via $uri"
-            $response = Invoke-WebRequest -Headers $headers -Uri $uri
+            $response = Invoke-WebRequest -Headers $headers -Uri $uri -ContentType 'application/vnd.github+json'
             $content = $response.Content | ConvertFrom-Json
             $accessType = $content.permission
             Write-Host "Found membership: $accessType"
